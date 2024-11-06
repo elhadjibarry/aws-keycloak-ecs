@@ -1,0 +1,33 @@
+KeycloakScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ResourceId: !Sub "service/${KeycloakCluster}/${KeycloakService}"
+      ScalableDimension: ecs:service:DesiredCount
+      MinCapacity: 1
+      MaxCapacity: 5
+      RoleARN: arn:aws:iam::<your-account-id>:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+
+  KeycloakScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: dev-keycloak-cpu-scaling-policy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref KeycloakScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 50.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleOutCooldown: 300
+        ScaleInCooldown: 300
+
+  KeycloakAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z35SXDOTRQ7X7K  # Hosted zone ID for your load balancer
+        DNSName: !GetAtt KeycloakLoadBalancer.DNSName
+        EvaluateTargetHealth: false

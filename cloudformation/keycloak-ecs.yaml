@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Keycloak ECS Setup with Load Balancer and Auto Scaling
+
+Parameters:
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the VPC
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The list of Public Subnet IDs for the Load Balancer
+  ECSPrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The list of Private Subnet IDs for the ECS tasks
+  ALBSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The ID of the Load Balancer Security Group
+  ECSSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The ID of the ECS task Security Group
+  HostedZoneId:
+    Type: String
+    Description: The ID of the Route 53 Hosted Zone
+  DomainName:
+    Type: String
+    Description: The domain name for the alias record
+  RDSInstanceEndpoint:
+    Type: String
+    Description: The RDS instance endpoint for Keycloak database
+  DBSecretArn:
+    Type: String
+    Description: The ARN of the secret in AWS Secrets Manager that contains the database credentials
+
+Resources:
+
+  KeycloakLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/ecs/dev-keycloak"
+      RetentionInDays: 14
+
+  KeycloakCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: dev-keycloak-cluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+          base: 1
+
+  KeycloakTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: dev-keycloak-task
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 1024
+      Memory: 2048
+      ExecutionRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/KeycloakECSTaskExecutionRole"
+      ContainerDefinitions:
+        - Name: dev-keycloak
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/dev-keycloak
+          Command: ["start-dev"]
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: KC_BOOTSTRAP_ADMIN_USERNAME
+              Value: keycloakadmin
+            - Name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              Value: keycloakadmin
+            - Name: KC_DB
+              Value: postgres
+            - Name: KC_DB_URL
+              Value: !Sub jdbc:postgresql://${RDSInstanceEndpoint}:5432/keycloakdb
+            - Name: KC_DB_USERNAME
+              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref DBSecretArn, ":SecretString:dbusername}}" ] ]
+            - Name: KC_DB_PASSWORD
+              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref DBSecretArn, ":SecretString:dbpassword}}" ] ]
+            - Name: KC_HTTP_ENABLED
+              Value: true
+            - Name: KC_HOSTNAME_STRICT
+              Value: false
+            - Name: KC_HOSTNAME_STRICT_HTTPS
+              Value: false
+            - Name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              Value: false
+            - Name: KC_LOG_LEVEL
+              Value: INFO
+            - Name: KC_HEALTH_ENABLED
+              Value: true
+            - Name: KC_METRICS_ENABLED
+              Value: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref KeycloakLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: keycloak
+
+  KeycloakTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: dev-keycloak-target-group
+      Protocol: HTTP
+      Port: 8080
+      VpcId: !Ref VPCId
+      TargetType: ip
+      HealthCheckProtocol: HTTPS
+      HealthCheckPort: 9000
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+
+  KeycloakLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: dev-keycloak-load-balancer
+      Subnets: !Ref PublicSubnetIds
+      SecurityGroups:
+        - !Ref ALBSecurityGroupId
+
+  KeycloakListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref KeycloakLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref KeycloakTargetGroup
+
+  KeycloakService:
+    Type: AWS::ECS::Service
+    DependsOn: KeycloakListener
+    Properties:
+      Cluster: !Ref KeycloakCluster
+      ServiceName: dev-keycloak-service
+      TaskDefinition: !Ref KeycloakTaskDefinition
+      DesiredCount: 2
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref ECSPrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref KeycloakTargetGroup
+          ContainerName: dev-keycloak
+          ContainerPort: 8080
+
+Outputs:
+  LoadBalancerDNSName:
+    Description: The DNS name of the load balancer
+    Value: !GetAtt KeycloakLoadBalancer.DNSName
