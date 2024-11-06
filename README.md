@@ -8,7 +8,7 @@ https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_GettingStarted.Creat
 
 ```bash
 sudo dnf update -y
-sudo dnf install postgresql116
+sudo dnf install postgresql16
 psql --host=keycloakdb-instance.cdce60mw24gj.us-east-1.rds.amazonaws.com --port=5432 --dbname=keycloakdb --username=dbadmin
 ```
 ```sql

@@ -156,7 +156,45 @@ Resources:
           ContainerName: dev-keycloak
           ContainerPort: 8080
 
+  KeycloakScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: KeycloakService
+    Properties:
+      ServiceNamespace: ecs
+      ResourceId: service/dev-keycloak-cluster/dev-keycloak-service
+      ScalableDimension: ecs:service:DesiredCount
+      MinCapacity: 1
+      MaxCapacity: 5
+      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+
+  KeycloakScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: dev-keycloak-cpu-scaling-policy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref KeycloakScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 80.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleOutCooldown: 300
+        ScaleInCooldown: 300
+
+  Route53AliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt KeycloakLoadBalancer.DNSName
+        HostedZoneId: !GetAtt KeycloakLoadBalancer.CanonicalHostedZoneID
+
 Outputs:
   LoadBalancerDNSName:
     Description: The DNS name of the load balancer
     Value: !GetAtt KeycloakLoadBalancer.DNSName
+
+  DomainName:
+    Description: The domain name for the alias record
+    Value: !Ref DomainName
