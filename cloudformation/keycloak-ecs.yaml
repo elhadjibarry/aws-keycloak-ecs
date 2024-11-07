@@ -29,6 +29,10 @@ Parameters:
   DBSecretArn:
     Type: String
     Description: The ARN of the secret in AWS Secrets Manager that contains the database credentials
+  KeycloakAdminUsername:
+    Description: The Keycloak admin username
+    Type: String
+    Default: keycloakadmin
 
 Resources:
 
@@ -37,6 +41,17 @@ Resources:
     Properties:
       LogGroupName: "/ecs/dev-keycloak"
       RetentionInDays: 14
+
+  KeycloakSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: KeycloakSecret
+      Description: "Keycloak credentials"
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"keycloakadminusername": "${KeycloakAdminUsername}"}'
+        GenerateStringKey: "keycloakadminpassword"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
 
   KeycloakCluster:
     Type: AWS::ECS::Cluster
@@ -71,9 +86,9 @@ Resources:
               Protocol: tcp
           Environment:
             - Name: KC_BOOTSTRAP_ADMIN_USERNAME
-              Value: keycloakadmin
+              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref KeycloakSecret, ":SecretString:keycloakadminusername}}" ] ]
             - Name: KC_BOOTSTRAP_ADMIN_PASSWORD
-              Value: keycloakadmin
+              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref KeycloakSecret, ":SecretString:keycloakadminpassword}}" ] ]
             - Name: KC_DB
               Value: postgres
             - Name: KC_DB_URL
@@ -174,7 +189,7 @@ Resources:
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref KeycloakScalableTarget
       TargetTrackingScalingPolicyConfiguration:
-        TargetValue: 80.0
+        TargetValue: 50.0
         PredefinedMetricSpecification:
           PredefinedMetricType: ECSServiceAverageCPUUtilization
         ScaleOutCooldown: 300
