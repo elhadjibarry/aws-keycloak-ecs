@@ -33,6 +33,9 @@ Parameters:
     Description: The Keycloak admin username
     Type: String
     Default: keycloakadmin
+  CertificateArn:
+    Type: String
+    Description: The ARN of the SSL/TLS certificate in AWS Certificate Manager (ACM)
 
 Resources:
 
@@ -78,7 +81,7 @@ Resources:
       ContainerDefinitions:
         - Name: dev-keycloak
           Image: !Sub ${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/dev-keycloak
-          Command: ["start-dev"]
+          Command: ["start"]
           Essential: true
           PortMappings:
             - ContainerPort: 8080
@@ -97,14 +100,14 @@ Resources:
               Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref DBSecretArn, ":SecretString:dbusername}}" ] ]
             - Name: KC_DB_PASSWORD
               Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref DBSecretArn, ":SecretString:dbpassword}}" ] ]
-            - Name: KC_HTTP_ENABLED
-              Value: true
+            - Name: KC_HOSTNAME
+              Value: !Ref DomainName
             - Name: KC_HOSTNAME_STRICT
               Value: false
-            - Name: KC_HOSTNAME_STRICT_HTTPS
-              Value: false
-            - Name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
-              Value: false
+            - Name: KC_HTTP_ENABLED
+              Value: true
+            - Name: KC_PROXY_HEADERS
+              Value: xforwarded
             - Name: KC_LOG_LEVEL
               Value: INFO
             - Name: KC_HEALTH_ENABLED
@@ -146,8 +149,10 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref KeycloakLoadBalancer
-      Protocol: HTTP
-      Port: 80
+      Protocol: HTTPS
+      Port: 443
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref KeycloakTargetGroup
@@ -208,8 +213,11 @@ Resources:
 Outputs:
   LoadBalancerDNSName:
     Description: The DNS name of the load balancer
-    Value: !GetAtt KeycloakLoadBalancer.DNSName
+    Value: !Join
+      - ''
+      - - 'https://'
+        - !GetAtt KeycloakLoadBalancer.DNSName
 
   DomainName:
     Description: The domain name for the alias record
-    Value: !Ref DomainName
+    Value: !Sub "https://${DomainName}"
