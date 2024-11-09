@@ -29,10 +29,9 @@ Parameters:
   DBSecretArn:
     Type: String
     Description: The ARN of the secret in AWS Secrets Manager that contains the database credentials
-  KeycloakAdminUsername:
-    Description: The Keycloak admin username
+  KeycloakSecretArn:
     Type: String
-    Default: keycloakadmin
+    Description: The ARN of the secret in AWS Secrets Manager that contains the Keycloak credentials
   CertificateArn:
     Type: String
     Description: The ARN of the SSL/TLS certificate in AWS Certificate Manager (ACM)
@@ -44,17 +43,6 @@ Resources:
     Properties:
       LogGroupName: "/ecs/dev-keycloak"
       RetentionInDays: 14
-
-  KeycloakSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: KeycloakSecret
-      Description: "Keycloak credentials"
-      GenerateSecretString:
-        SecretStringTemplate: !Sub '{"keycloakadminusername": "${KeycloakAdminUsername}"}'
-        GenerateStringKey: "keycloakadminpassword"
-        PasswordLength: 16
-        ExcludeCharacters: '"@/\\'
 
   KeycloakCluster:
     Type: AWS::ECS::Cluster
@@ -89,9 +77,9 @@ Resources:
               Protocol: tcp
           Environment:
             - Name: KC_BOOTSTRAP_ADMIN_USERNAME
-              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref KeycloakSecret, ":SecretString:keycloakadminusername}}" ] ]
+              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref KeycloakSecretArn, ":SecretString:keycloakadminusername}}" ] ]
             - Name: KC_BOOTSTRAP_ADMIN_PASSWORD
-              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref KeycloakSecret, ":SecretString:keycloakadminpassword}}" ] ]
+              Value: !Join [ "", [ "{{resolve:secretsmanager:", !Ref KeycloakSecretArn, ":SecretString:keycloakadminpassword}}" ] ]
             - Name: KC_DB
               Value: postgres
             - Name: KC_DB_URL

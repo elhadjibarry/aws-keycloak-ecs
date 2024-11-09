@@ -82,6 +82,10 @@ Parameters:
       - db.t3.medium
       - db.t3.large
 
+  KeycloakAdminUsername:
+    Description: The Keycloak admin username
+    Type: String
+    Default: keycloakadmin
 
 #Resources are the core of the template. They represent the different AWS components that will be created when the template is deployed.
 #All the resources are tagged with the project name to easily identify them in the AWS Management Console and for billing purposes.
@@ -431,7 +435,16 @@ Resources:
         - Key: Name
           Value: !Sub ${ProjectName}-RDS-Instance
 
-  
+  KeycloakSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: KeycloakSecret
+      Description: "Keycloak credentials"
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"keycloakadminusername": "${KeycloakAdminUsername}"}'
+        GenerateStringKey: "keycloakadminpassword"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
 
   
 # Outputs section of the template allows you to define the outputs of the template that you want to be displayed after the stack is created.
@@ -443,3 +456,6 @@ Outputs:
   DBSecretArn:
     Description: The ARN of the database secret
     Value: !Ref DBSecret
+  KeycloakSecretArn:
+    Description: The ARN of the Keycloak secret
+    Value: !Ref KeycloakSecret
