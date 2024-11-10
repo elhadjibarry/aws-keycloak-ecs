@@ -81,7 +81,20 @@ Parameters:
     Type: String
     Default: keycloakadmin
 
-#Resources are the core of the template. They represent the different AWS components that will be created when the template is deployed.
+  DomainName:
+    Type: String
+    Description: The domain name that will be used to create a certificate in ACM for the ALB
+
+  HostedZoneId:
+    Type: String
+    Description: The ID of the Route 53 Hosted Zone of the domain to create a certificate in ACM
+
+#Condition to check if the HostedZoneId and DomainName parameters are provided to create a certificate in ACM.
+Conditions:
+  CreateCertificate: !And
+    - !Not [!Equals [!Ref DomainName, ""]]
+    - !Not [!Equals [!Ref HostedZoneId, ""]]
+
 Resources:
 
   # KeycloakECSTaskExecutionRole resource creates an IAM role that allows ECS tasks to make API requests to AWS services on your behalf.
@@ -445,7 +458,24 @@ Resources:
         GenerateStringKey: "keycloakadminpassword"
         PasswordLength: 16
         ExcludeCharacters: '"@/\\'
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-Keycloak-Secret"
 
+  # ACM Certificate resource requests a public certificate for the specified domain name.
+  # This certificate will be used by the Application Load Balancer to enable HTTPS traffic.
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: CreateCertificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-Certificate
   
 # Outputs section of the template allows you to define the outputs of the template that you want to be displayed after the stack is created.
 # In this template, we are outputting the endpoint of the RDS instance, the ARN of the database secret, and the ARN of the Keycloak secret.

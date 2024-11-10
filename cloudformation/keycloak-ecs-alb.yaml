@@ -31,7 +31,7 @@ Parameters:
 
   DomainName:
     Type: String
-    Description: The domain name for the alias record
+    Description: The domain name that will be used for the Route 53 alias record to access the Keycloak service
 
   RDSInstanceEndpoint:
     Type: String
