@@ -292,7 +292,7 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
 
   # PrivateRouteTable resource creates a route table for the VPC
-  # This route table will be associated with the private subnets to define the routing rules for the traffic.
+  # This route table will be associated with the ECS private subnets to define the routing rules for the traffic.
   PrivateRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -489,3 +489,6 @@ Outputs:
   KeycloakSecretArn:
     Description: The ARN of the Keycloak secret
     Value: !Ref KeycloakSecret
+  CertificateArn:
+    Description: The ARN of the ACM certificate
+    Value: !Ref Certificate
