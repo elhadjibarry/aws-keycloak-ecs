@@ -11,11 +11,11 @@ Parameters:
 
   PublicSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: The list of Public Subnet IDs for the Load Balancer
+    Description: The list of Public Subnet IDs to use for the Load Balancer
 
   ECSPrivateSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: The list of Private Subnet IDs for the ECS tasks
+    Description: The list of Private Subnet IDs to use for the ECS tasks
 
   ALBSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
