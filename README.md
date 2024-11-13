@@ -1,4 +1,4 @@
-# How to deploy Keycloak in AWS ECS cluster
+# How to deploy Keycloak in an AWS ECS cluster
 
 Keycloak is an open-source identity and access management solution that offers authentication and authorization capabilities. It provides features such as single sign-on (SSO), user federation, identity brokering and social login. 
 
@@ -29,17 +29,23 @@ We will use this [Dockerfile](docker/Dockerfile) to build the Keycloak container
 aws ecr create-repository --repository-name dev-keycloak --image-scanning-configuration scanOnPush=true --region us-east-1
 ```
 
-### 1.2 Build and tag the Docker image
+### 1.2 Build the Docker image
 ```bash
 docker build -t dev-keycloak ./docker
+```
 
+### 1.3 Tag the Docker image
+```bash
 docker tag dev-keycloak:latest <your-account-number>.dkr.ecr.us-east-1.amazonaws.com/dev-keycloak
 ```
 
-### 1.3 Login and push the image to Amazon ECR
+### 1.4 Login into Amazon ECR
 ```bash
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your-account-number>.dkr.ecr.us-east-1.amazonaws.com
+```
 
+### 1.5 Push the image to Amazon ECR
+```bash
 docker push <your-account-number>.dkr.ecr.us-east-1.amazonaws.com/dev-keycloak
 ```
 
